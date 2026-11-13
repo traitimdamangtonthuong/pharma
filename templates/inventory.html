@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Báo cáo tồn kho{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">TỔNG QUAN KHO THUỐC</p>
+        <h1>Báo cáo tồn kho</h1>
+        <p class="page-description">Theo dõi số lượng và giá trị tồn kho hiện tại của các loại thuốc.</p>
+    </div>
+    <div class="heading-chip">
+        <span class="chip-dot"></span>
+        Báo cáo kho
+    </div>
+</section>
+
+<section class="summary-grid">
+    <article class="summary-card">
+        <div class="summary-card-top">
+            <span class="summary-icon summary-icon-green" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <path d="m3 7 9-4 9 4-9 4-9-4Z"></path>
+                    <path d="M3 7v10l9 4 9-4V7M12 11v10"></path>
+                </svg>
+            </span>
+            <span class="summary-caption">DANH MỤC KHO</span>
+        </div>
+        <p class="summary-label">Tổng số loại thuốc</p>
+        <p class="summary-number">{{ summary.TongSoLoai or 0 }}</p>
+        <p class="summary-foot">Số mặt hàng thuốc đang quản lý</p>
+    </article>
+
+    <article class="summary-card">
+        <div class="summary-card-top">
+            <span class="summary-icon summary-icon-blue" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <path d="M4 7h16M6 7V4h12v3M6 7v13h12V7"></path>
+                    <path d="M9 11h6M9 15h6"></path>
+                </svg>
+            </span>
+            <span class="summary-caption">SỐ LƯỢNG</span>
+        </div>
+        <p class="summary-label">Tổng số lượng tồn</p>
+        <p class="summary-number">{{ "{:,.0f}".format(summary.TongSoLuong or 0).replace(",", ".") }}</p>
+        <p class="summary-foot">Tổng số đơn vị thuốc trong kho</p>
+    </article>
+
+    <article class="summary-card">
+        <div class="summary-card-top">
+            <span class="summary-icon summary-icon-amber" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 3v18M17 7.5c0-1.7-2.2-3-5-3s-5 1.3-5 3 2.2 3 5 3 5 1.3 5 3-2.2 3-5 3-5-1.3-5-3"></path>
+                </svg>
+            </span>
+            <span class="summary-caption">GIÁ TRỊ THEO GIÁ BÁN</span>
+        </div>
+        <p class="summary-label">Tổng giá trị tồn kho</p>
+        <p class="summary-number summary-number-money">{{ "{:,.0f}".format(summary.TongGiaTri or 0).replace(",", ".") }} <small>đ</small></p>
+        <p class="summary-foot">Ước tính theo đơn giá bán hiện tại</p>
+    </article>
+</section>
+
+<div class="results-heading inventory-results-heading">
+    <div>
+        <h2 class="section-title">Danh sách thuốc trong kho</h2>
+        <p class="result-count">Có <strong>{{ inventory|length }}</strong> loại thuốc trong báo cáo</p>
+    </div>
+</div>
+
+<section class="panel table-panel">
+    <div class="table-scroll">
+        <table class="data-table inventory-table">
+            <thead>
+                <tr>
+                    <th>Mã thuốc</th>
+                    <th>Tên thuốc</th>
+                    <th>Danh mục</th>
+                    <th>Đơn giá bán</th>
+                    <th>Số lượng tồn</th>
+                    <th>Giá trị tồn kho</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in inventory %}
+                <tr>
+                    <td><span class="code-chip">{{ item.MaThuoc }}</span></td>
+                    <td><span class="medicine-name">{{ item.TenThuoc }}</span></td>
+                    <td>{{ item.TenDanhMuc or '-' }}</td>
+                    <td class="numeric-cell">{{ "{:,.0f}".format(item.DonGiaBan or 0).replace(",", ".") }} đ</td>
+                    <td><span class="stock-value">{{ item.SoLuongTon if item.SoLuongTon is not none else 0 }}</span></td>
+                    <td class="numeric-cell value-cell">{{ "{:,.0f}".format(item.GiaTriTonKho or 0).replace(",", ".") }} đ</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <span class="empty-state-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="m3 7 9-4 9 4-9 4-9-4Z"></path>
+                                    <path d="M3 7v10l9 4 9-4V7M12 11v10"></path>
+                                </svg>
+                            </span>
+                            <strong>Chưa có dữ liệu tồn kho</strong>
+                            <p>Danh sách thuốc sẽ hiển thị tại đây khi cơ sở dữ liệu có dữ liệu.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="table-footnote">
+        <span class="footnote-mark">i</span>
+        Giá trị tồn kho được tính bằng đơn giá bán nhân số lượng tồn; đây không phải giá trị theo giá nhập.
+    </div>
+</section>
+{% endblock %}

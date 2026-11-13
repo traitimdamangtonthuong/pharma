@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}Lập hóa đơn bán hàng{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">NGHIỆP VỤ BÁN HÀNG - FORM 2</p>
+        <h1>Lập hóa đơn bán hàng</h1>
+        <p class="page-description">Chọn thuốc, quản lý đơn hàng và xuất hóa đơn (tự động kiểm tra và trừ tồn kho).</p>
+    </div>
+    <div class="heading-chip">
+        <span class="chip-dot"></span>
+        Hóa đơn bán lẻ
+    </div>
+</section>
+
+<!-- Hiển thị thông báo Flash nếu có -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div style="padding: 14px 18px; margin-bottom: 20px; border-radius: 10px; font-weight: 500;
+                        background: {% if category == 'success' %}#d1fae5; color: #065f46; border: 1px solid #a7f3d0;{% else %}#fee2e2; color: #991b1b; border: 1px solid #fecaca;{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<!-- Form chính gửi toàn bộ Hóa đơn lên Backend -->
+<form method="POST" action="{{ url_for('create_invoice') }}" id="invoice-form">
+    
+    <!-- KHỐI 1: THÔNG TIN CHUNG HÓA ĐƠN (MASTER) -->
+    <section class="panel search-panel" style="margin-bottom: 24px;">
+        <div class="panel-heading">
+            <h2 class="panel-title">1. Thông tin chung hóa đơn</h2>
+            <p class="panel-description">Chọn nhân viên trực ca và khách hàng mua thuốc.</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 15px;">
+            <label class="form-field">
+                <span class="field-label">Mã hóa đơn (*)</span>
+                <input type="text" name="ma_hd" value="{{ ma_hd_moi }}" readonly 
+                       style="background: #f1f5f9; cursor: not-allowed; font-weight: 600; color: #176b52; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1;">
+            </label>
+
+            <label class="form-field">
+                <span class="field-label">Ngày bán</span>
+                <input type="text" id="disp-today" readonly value=""
+                       style="background: #f1f5f9; cursor: not-allowed; font-weight: 600; color: #176b52; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1;">
+            </label>
+
+                        <!-- Ô NHẬP NHÂN VIÊN (Gõ tay hoặc chọn gợi ý) -->
+            <label class="form-field">
+                <span class="field-label">Dược sĩ / Nhân viên lập đơn (*)</span>
+                <input type="text" name="ten_nv" list="employee-list" required placeholder="Nhập tên hoặc mã nhân viên..."
+                       style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                <datalist id="employee-list">
+                    {% for nv in employees %}
+                        <option value="{{ nv.TenNV }}">{{ nv.MaNV }} - {{ nv.VaiTro or 'Nhân viên' }}</option>
+                    {% endfor %}
+                </datalist>
+            </label>
+
+            <!-- Ô NHẬP TÊN KHÁCH HÀNG (Gõ tay) -->
+            <label class="form-field">
+                <span class="field-label">Tên khách hàng (*)</span>
+                <input type="text" name="ten_kh" required placeholder="Nhập họ tên khách (VD: Nguyễn Văn A)..."
+                       value="Khách vãng lai"
+                       style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+            </label>
+
+            <!-- Ô NHẬP SỐ ĐIỆN THOẠI KHÁCH (Gõ tay) -->
+            <label class="form-field">
+                <span class="field-label">Số điện thoại khách</span>
+                <input type="text" name="sdt_kh" placeholder="VD: 0987654321..."
+                       style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+            </label>
+        </div>
+    </section>
+
+    <!-- KHỐI 2: CHỌN THUỐC ĐỂ BÁN (DETAIL PICKER) -->
+    <section class="panel search-panel" style="margin-bottom: 24px;">
+        <div class="panel-heading">
+            <h2 class="panel-title">2. Chọn thuốc thêm vào đơn</h2>
+            <p class="panel-description">Chọn thuốc từ kho và nhập số lượng muốn bán.</p>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 16px; align-items: flex-end; margin-top: 15px;">
+            <label class="form-field">
+                <span class="field-label">Tên thuốc</span>
+                <select id="select-medicine" style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                    <option value="">-- Chọn thuốc cần bán --</option>
+                    {% for m in medicines %}
+                        <option value="{{ m.MaThuoc }}" 
+                                data-name="{{ m.TenThuoc }}" 
+                                data-price="{{ m.DonGiaBan }}" 
+                                data-stock="{{ m.SoLuongTon }}">
+                            {{ m.TenThuoc }} - Giá: {{ "{:,.0f}".format(m.DonGiaBan) }}đ (Tồn: {{ m.SoLuongTon }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label class="form-field">
+                <span class="field-label">Đơn giá bán (VNĐ)</span>
+                <input type="text" id="disp-price" readonly placeholder="0 đ" 
+                       style="background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-weight: 600;">
+            </label>
+
+            <label class="form-field">
+                <span class="field-label">Số lượng mua</span>
+                <input type="number" id="input-qty" min="1" value="1" 
+                       style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+            </label>
+
+            <button type="button" class="button button-primary" id="btn-add-item" style="height: 42px; padding: 0 20px;">
+                + Thêm vào đơn
+            </button>
+        </div>
+        <p id="stock-warning" style="color: #dc2626; font-size: 13px; margin-top: 8px; display: none; font-weight: 500;"></p>
+    </section>
+
+    <!-- KHỐI 3: DANH SÁCH THUỐC TRONG ĐƠN (GIỎ HÀNG) -->
+    <div class="results-heading">
+        <div>
+            <h2 class="section-title">3. Danh sách thuốc trong hóa đơn</h2>
+            <p class="result-count">Tổng số mặt hàng: <strong id="item-count">0</strong></p>
+        </div>
+    </div>
+
+    <section class="panel table-panel">
+        <div class="table-scroll">
+            <table class="data-table" id="cart-table">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">STT</th>
+                        <th>Mã thuốc</th>
+                        <th>Tên thuốc</th>
+                        <th style="text-align: right;">Đơn giá</th>
+                        <th style="text-align: center; width: 120px;">Số lượng</th>
+                        <th style="text-align: right;">Thành tiền</th>
+                        <th style="text-align: center; width: 100px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="cart-body">
+                    <tr id="empty-row">
+                        <td colspan="7" style="text-align: center; color: #94a3b8; padding: 30px;">
+                            Chưa có thuốc nào trong đơn hàng. Vui lòng chọn thuốc ở phía trên!
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TỔNG KẾT & THANH TOÁN -->
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 24px 20px; border-top: 2px solid #e2e8f0; background: #fafafa; border-radius: 0 0 12px 12px;">
+            <div>
+                <span style="font-size: 15px; color: #64748b; font-weight: 500;">TỔNG TIỀN THANH TOÁN:</span>
+                <span id="grand-total" style="font-size: 26px; font-weight: 800; color: #176b52; margin-left: 12px;">0 VNĐ</span>
+            </div>
+            
+            <div style="display: flex; gap: 12px;">
+                <button type="reset" class="button button-light" onclick="clearCart()">Hủy đơn</button>
+                <button type="submit" class="button button-primary" id="btn-submit-invoice" style="font-size: 15px; padding: 12px 28px;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    LƯU &amp; XUẤT HÓA ĐƠN
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Thẻ chứa dữ liệu giỏ hàng dạng JSON ẩn gửi lên server -->
+    <input type="hidden" name="cart_data" id="cart_data">
+</form>
+
+<!-- JAVASCRIPT XỬ LÝ GIỎ HÀNG TỨC THỜI TRÊN TRÌNH DUYỆT -->
+<script>
+    let cart = [];
+    const selectMed = document.getElementById('select-medicine');
+    const dispPrice = document.getElementById('disp-price');
+    const inputQty = document.getElementById('input-qty');
+    const btnAdd = document.getElementById('btn-add-item');
+    const stockWarn = document.getElementById('stock-warning');
+    const cartBody = document.getElementById('cart-body');
+    const grandTotal = document.getElementById('grand-total');
+    const itemCount = document.getElementById('item-count');
+    const cartDataInput = document.getElementById('cart_data');
+
+    // Khi chọn thuốc trong danh sách dropdown -> Hiển thị giá và tồn kho
+    selectMed.addEventListener('change', function() {
+        const selected = selectMed.options[selectMed.selectedIndex];
+        stockWarn.style.display = 'none';
+        if (selected.value) {
+            const price = parseFloat(selected.getAttribute('data-price')) || 0;
+            const stock = parseInt(selected.getAttribute('data-stock')) || 0;
+            dispPrice.value = price.toLocaleString('vi-VN') + ' đ';
+            inputQty.max = stock;
+            if (stock <= 0) {
+                stockWarn.textContent = 'Cảnh báo: Thuốc này đã hết hàng trong kho!';
+                stockWarn.style.display = 'block';
+            }
+        } else {
+            dispPrice.value = '';
+        }
+    });
+
+    // Bấm nút "Thêm vào đơn"
+    btnAdd.addEventListener('click', function() {
+        const selected = selectMed.options[selectMed.selectedIndex];
+        if (!selected.value) {
+            alert('Vui lòng chọn một loại thuốc!');
+            return;
+        }
+
+        const maThuoc = selected.value;
+        const tenThuoc = selected.getAttribute('data-name');
+        const donGia = parseFloat(selected.getAttribute('data-price')) || 0;
+        const tonKho = parseInt(selected.getAttribute('data-stock')) || 0;
+        const soLuong = parseInt(inputQty.value) || 0;
+
+        // KIỂM TRA TỒN KHO (VALIDATION)
+        if (soLuong <= 0) {
+            alert('Số lượng mua phải lớn hơn 0!');
+            return;
+        }
+        
+        // Kiểm tra xem thuốc này đã có trong giỏ hàng chưa
+        const existing = cart.find(item => item.maThuoc === maThuoc);
+        const tongLuongMuonMua = existing ? (existing.soLuong + soLuong) : soLuong;
+
+        if (tongLuongMuonMua > tonKho) {
+            alert(`Kho chỉ còn ${tonKho} hộp, không đủ để bán ${tongLuongMuonMua} hộp!`);
+            return;
+        }
+
+        if (existing) {
+            existing.soLuong += soLuong;
+        } else {
+            cart.push({ maThuoc, tenThuoc, donGia, soLuong });
+        }
+
+        renderCart();
+        selectMed.value = '';
+        dispPrice.value = '';
+        inputQty.value = 1;
+    });
+
+    // Vẽ lại bảng giỏ hàng trên giao diện
+    function renderCart() {
+        if (cart.length === 0) {
+            cartBody.innerHTML = `
+                <tr id="empty-row">
+                    <td colspan="7" style="text-align: center; color: #94a3b8; padding: 30px;">
+                        Chưa có thuốc nào trong đơn hàng. Vui lòng chọn thuốc ở phía trên!
+                    </td>
+                </tr>`;
+            grandTotal.textContent = '0 VNĐ';
+            itemCount.textContent = '0';
+            cartDataInput.value = '';
+            return;
+        }
+
+        let total = 0;
+        let html = '';
+        cart.forEach((item, index) => {
+            const thanhTien = item.soLuong * item.donGia;
+            total += thanhTien;
+            html += `
+                <tr>
+                    <td style="text-align: center;">${index + 1}</td>
+                    <td><strong>${item.maThuoc}</strong></td>
+                    <td>${item.tenThuoc}</td>
+                    <td style="text-align: right;">${item.donGia.toLocaleString('vi-VN')} đ</td>
+                    <td style="text-align: center;"><strong>${item.soLuong}</strong></td>
+                    <td style="text-align: right; color: #176b52; font-weight: 700;">${thanhTien.toLocaleString('vi-VN')} đ</td>
+                    <td style="text-align: center;">
+                        <button type="button" onclick="removeItem('${item.maThuoc}')" 
+                                style="background: #fee2e2; color: #dc2626; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                            Xóa
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        cartBody.innerHTML = html;
+        grandTotal.textContent = total.toLocaleString('vi-VN') + ' VNĐ';
+        itemCount.textContent = cart.length;
+        cartDataInput.value = JSON.stringify(cart);
+    }
+
+    // Xóa một dòng thuốc khỏi đơn
+    function removeItem(maThuoc) {
+        cart = cart.filter(item => item.maThuoc !== maThuoc);
+        renderCart();
+    }
+
+    // Hủy đơn hàng
+    function clearCart() {
+        cart = [];
+        renderCart();
+    }
+
+    // Kiểm tra trước khi bấm Lưu hóa đơn
+    document.getElementById('invoice-form').addEventListener('submit', function(e) {
+        if (cart.length === 0) {
+            e.preventDefault();
+            alert('Đơn hàng chưa có thuốc nào! Vui lòng chọn ít nhất 1 loại thuốc trước khi Lưu.');
+        }
+    });
+    document.getElementById('disp-today').value = new Date().toLocaleString('vi-VN');
+</script> 
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Cảnh báo hạn sử dụng{% endblock %}
+
+{% block content %}
+{% set expired_lots = expiry_list | selectattr("SoNgayConLai", "lt", 0) | list %}
+{% set expiring_lots = expiry_list | rejectattr("SoNgayConLai", "lt", 0) | list %}
+
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">KIỂM SOÁT HẠN DÙNG</p>
+        <h1>Cảnh báo hạn sử dụng</h1>
+        <p class="page-description">Theo dõi các lô thuốc đã hết hạn hoặc sẽ hết hạn trong vòng 30 ngày.</p>
+    </div>
+    <div class="heading-chip heading-chip-warning">
+        <span class="chip-dot"></span>
+        Cần theo dõi
+    </div>
+</section>
+
+<section class="summary-grid expiry-summary-grid">
+    <article class="summary-card">
+        <div class="summary-card-top">
+            <span class="summary-icon summary-icon-blue" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 7v5l3.2 2"></path>
+                </svg>
+            </span>
+            <span class="summary-caption">TỔNG QUAN</span>
+        </div>
+        <p class="summary-label">Tổng số lô cần theo dõi</p>
+        <p class="summary-number">{{ expiry_list|length }}</p>
+        <p class="summary-foot">Lô đã hết hạn và sắp hết hạn</p>
+    </article>
+
+    <article class="summary-card">
+        <div class="summary-card-top">
+            <span class="summary-icon summary-icon-red" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <path d="m12 3 9 16H3l9-16Z"></path>
+                    <path d="M12 9v4M12 16.5h.01"></path>
+                </svg>
+            </span>
+            <span class="summary-caption">CẢNH BÁO ĐỎ</span>
+        </div>
+        <p class="summary-label">Lô đã hết hạn</p>
+        <p class="summary-number summary-number-red">{{ expired_lots|length }}</p>
+        <p class="summary-foot">Hạn sử dụng trước ngày hiện tại</p>
+    </article>
+
+    <article class="summary-card">
+        <div class="summary-card-top">
+            <span class="summary-icon summary-icon-amber" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 7v5l3.2 2"></path>
+                </svg>
+            </span>
+            <span class="summary-caption">CẢNH BÁO VÀNG</span>
+        </div>
+        <p class="summary-label">Lô sắp hết hạn</p>
+        <p class="summary-number summary-number-amber">{{ expiring_lots|length }}</p>
+        <p class="summary-foot">Còn hạn trong tối đa 30 ngày</p>
+    </article>
+</section>
+
+<div class="results-heading">
+    <div>
+        <h2 class="section-title">Danh sách lô thuốc cần chú ý</h2>
+        <p class="result-count">Tìm thấy <strong>{{ expiry_list|length }}</strong> lô cần theo dõi</p>
+    </div>
+    <span class="table-hint">Sắp xếp theo hạn sử dụng gần nhất</span>
+</div>
+
+<section class="panel table-panel">
+    <div class="table-scroll">
+        <table class="data-table expiry-table">
+            <thead>
+                <tr>
+                    <th>Mã thuốc</th>
+                    <th>Tên thuốc</th>
+                    <th>Danh mục</th>
+                    <th>Số lô</th>
+                    <th>Ngày sản xuất</th>
+                    <th>Hạn sử dụng</th>
+                    <th>Số lượng nhập ban đầu</th>
+                    <th>Nhà cung cấp</th>
+                    <th>Số ngày còn lại</th>
+                    <th>Trạng thái</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in expiry_list %}
+                <tr>
+                    <td><span class="code-chip">{{ item.MaThuoc }}</span></td>
+                    <td><span class="medicine-name">{{ item.TenThuoc }}</span></td>
+                    <td>{{ item.TenDanhMuc or '-' }}</td>
+                    <td><span class="code-chip code-chip-muted">{{ item.SoLo }}</span></td>
+                    <td class="date-cell">{{ item.NSX.strftime('%d/%m/%Y') if item.NSX else '-' }}</td>
+                    <td class="date-cell expiry-date-strong">{{ item.HSD.strftime('%d/%m/%Y') if item.HSD else '-' }}</td>
+                    <td class="numeric-cell">{{ item.SoLuongThuocNhap }}</td>
+                    <td>{{ item.TenNCC or '-' }}</td>
+                    <td>
+                        {% if item.SoNgayConLai < 0 %}
+                            <span class="days-remaining days-expired">Quá {{ -item.SoNgayConLai }} ngày</span>
+                        {% else %}
+                            <span class="days-remaining days-warning">Còn {{ item.SoNgayConLai }} ngày</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.SoNgayConLai < 0 %}
+                            <span class="status-pill status-pill-expired">Đã hết hạn</span>
+                        {% else %}
+                            <span class="status-pill status-pill-warning">Sắp hết hạn</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10">
+                        <div class="empty-state">
+                            <span class="empty-state-icon empty-state-icon-success" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="m5 12 4.5 4.5L19 7"></path>
+                                </svg>
+                            </span>
+                            <strong>Không có lô thuốc cần cảnh báo</strong>
+                            <p>Hiện không có lô nào đã hết hạn hoặc sẽ hết hạn trong 30 ngày tới.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="table-footnote table-footnote-warning">
+        <span class="footnote-mark">!</span>
+        “Số lượng nhập ban đầu” là số lượng ghi nhận khi nhập lô, không phải số lượng còn lại hiện tại của lô.
+    </div>
+</section>
+{% endblock %}

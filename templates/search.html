@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Tìm kiếm thuốc{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="page-eyebrow">TRA CỨU DỮ LIỆU</p>
+        <h1>Tìm kiếm thuốc</h1>
+        <p class="page-description">Tra cứu thông tin thuốc, nhà cung cấp và tình trạng hạn sử dụng theo từng lô.</p>
+    </div>
+    <div class="heading-chip">
+        <span class="chip-dot"></span>
+        Tra cứu thuốc
+    </div>
+</section>
+
+<section class="panel search-panel">
+    <div class="panel-heading">
+        <div>
+            <h2 class="panel-title">Thông tin tìm kiếm</h2>
+            <p class="panel-description">Nhập mã thuốc, tên thuốc hoặc danh mục để bắt đầu tra cứu.</p>
+        </div>
+    </div>
+
+    <form method="GET" action="{{ url_for('search_medicine') }}" class="search-toolbar">
+        <label class="form-field search-field">
+            <span class="field-label">Từ khóa tìm kiếm</span>
+            <span class="input-wrap">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="10.8" cy="10.8" r="6.8"></circle>
+                    <path d="m16 16 4.2 4.2"></path>
+                </svg>
+                <input
+                    type="text"
+                    name="q"
+                    placeholder="Mã thuốc, tên thuốc hoặc danh mục..."
+                    value="{{ keyword }}"
+                    autocomplete="off"
+                >
+            </span>
+        </label>
+
+        <label class="form-field expiry-field">
+            <span class="field-label">Lọc theo hạn sử dụng</span>
+            <select name="expiry_status">
+                <option value="all" {% if expiry_status == 'all' %}selected{% endif %}>Tất cả thuốc</option>
+                <option value="expiring" {% if expiry_status == 'expiring' %}selected{% endif %}>Sắp hết hạn (30 ngày)</option>
+                <option value="expired" {% if expiry_status == 'expired' %}selected{% endif %}>Đã hết hạn</option>
+            </select>
+        </label>
+
+        <button type="submit" class="button button-primary">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10.8" cy="10.8" r="6.8"></circle>
+                <path d="m16 16 4.2 4.2"></path>
+            </svg>
+            Tìm kiếm
+        </button>
+
+        <a class="button button-light" href="{{ url_for('search_medicine') }}">Xóa lọc</a>
+    </form>
+</section>
+
+<div class="results-heading">
+    <div>
+        <h2 class="section-title">Danh sách kết quả</h2>
+        <p class="result-count">Tìm thấy <strong>{{ medicines|length }}</strong> kết quả phù hợp</p>
+    </div>
+    <span class="table-hint">Dữ liệu được sắp xếp theo tên thuốc</span>
+</div>
+
+<section class="panel table-panel">
+    <div class="table-scroll">
+        <table class="data-table search-table">
+            <thead>
+                <tr>
+                    <th>Mã thuốc</th>
+                    <th>Tên thuốc</th>
+                    <th>Danh mục</th>
+                    <th>Thành phần</th>
+                    <th>Chỉ định</th>
+                    <th>Giá bán</th>
+                    <th>Tồn kho</th>
+                    <th>Số lô</th>
+                    <th>NSX</th>
+                    <th>Hạn sử dụng</th>
+                    <th>Nhà cung cấp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for medicine in medicines %}
+                <tr>
+                    <td><span class="code-chip">{{ medicine.MaThuoc }}</span></td>
+                    <td><span class="medicine-name">{{ medicine.TenThuoc }}</span></td>
+                    <td>{{ medicine.TenDanhMuc or '-' }}</td>
+                    <td class="long-text">{{ medicine.ThanhPhan or '-' }}</td>
+                    <td class="long-text">{{ medicine.ChiDinh or '-' }}</td>
+                    <td class="numeric-cell">{{ "{:,.0f}".format(medicine.DonGiaBan or 0).replace(",", ".") }} đ</td>
+                    <td><span class="stock-value">{{ medicine.SoLuongTon if medicine.SoLuongTon is not none else '-' }}</span></td>
+                    <td><span class="code-chip code-chip-muted">{{ medicine.SoLo or '-' }}</span></td>
+                    <td class="date-cell">{{ medicine.NSX.strftime('%d/%m/%Y') if medicine.NSX else '-' }}</td>
+                    <td>
+                        {% if medicine.HSD %}
+                            <div class="expiry-cell">
+                                <span class="date-cell">{{ medicine.HSD.strftime('%d/%m/%Y') }}</span>
+                                {% if medicine.SoNgayConLai is not none and medicine.SoNgayConLai < 0 %}
+                                    <span class="status-pill status-pill-expired">Quá hạn {{ -medicine.SoNgayConLai }} ngày</span>
+                                {% elif medicine.SoNgayConLai is not none and medicine.SoNgayConLai <= 30 %}
+                                    <span class="status-pill status-pill-warning">Còn {{ medicine.SoNgayConLai }} ngày</span>
+                                {% else %}
+                                    <span class="status-pill status-pill-safe">Còn hạn</span>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <span class="muted-text">Chưa cập nhật</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ medicine.TenNCC or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="11">
+                        <div class="empty-state">
+                            <span class="empty-state-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <circle cx="10.8" cy="10.8" r="6.8"></circle>
+                                    <path d="m16 16 4.2 4.2"></path>
+                                </svg>
+                            </span>
+                            <strong>Không tìm thấy thuốc phù hợp</strong>
+                            <p>Hãy thử từ khóa khác hoặc thay đổi bộ lọc hạn sử dụng.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="table-footnote">
+        <span class="footnote-mark">i</span>
+        Số lượng tồn là tổng tồn kho theo thuốc, không phải số lượng còn lại riêng của từng lô. Một thuốc có thể xuất hiện nhiều dòng nếu có nhiều lô.
+    </div>
+</section>
+{% endblock %}

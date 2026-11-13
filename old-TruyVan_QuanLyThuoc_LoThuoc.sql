@@ -1,0 +1,107 @@
+USE quan_ly_nha_thuoc;
+SET NAMES utf8mb4;
+
+ALTER TABLE DANH_MUC MODIFY TenDanhMuc VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO DANH_MUC (MaDanhMuc, TenDanhMuc) VALUES 
+('DM01', 'Thuốc giảm đau - hạ sốt'),
+('DM02', 'Thuốc kháng sinh'),
+('DM03', 'Thuốc ho - hô hấp'),
+('DM04', 'Thực phẩm chức năng & Vitamin'),
+('DM05', 'Thuốc tiêu hóa')
+ON DUPLICATE KEY UPDATE TenDanhMuc = VALUES(TenDanhMuc);
+
+ALTER TABLE NHA_CUNG_CAP MODIFY TenNCC VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO NHA_CUNG_CAP (MaNCC, TenNCC, Diachi, SDT, Email) VALUES 
+('NCC01', 'Công ty Cổ phần Dược Hậu Giang (DHG)', 'Cần Thơ', '02923891433', 'dhg@dhgpharma.com.vn'),
+('NCC02', 'Công ty CP Traphaco', 'Hà Nội', '02436815097', 'info@traphaco.com.vn'),
+('NCC03', 'Công ty Dược phẩm Sanofi Việt Nam', 'TP. Hồ Chí Minh', '02838298526', 'contact@sanofi.com')
+ON DUPLICATE KEY UPDATE TenNCC = VALUES(TenNCC);
+
+ALTER TABLE NHAN_VIEN MODIFY TenNV VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO NHAN_VIEN (MaNV, TenNV, SDT, Email, VaiTro, Luong) VALUES 
+('NV01', 'Nguyễn Văn An', '0901000001', 'annv@pharma.vn', 'Dược sĩ', 12000000.00),
+('NV02', 'Trần Thị Bình', '0901000002', 'binhtt@pharma.vn', 'Bán hàng', 8500000.00),
+('NV03', 'Lê Hoàng Nam', '0901000003', 'namlh@pharma.vn', 'Quản lý kho', 10000000.00)
+ON DUPLICATE KEY UPDATE TenNV = VALUES(TenNV);
+
+ALTER TABLE THUOC 
+    MODIFY TenThuoc VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    MODIFY ThanhPhan VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+    MODIFY ChiDinh VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO THUOC (MaThuoc, TenThuoc, ThanhPhan, ChiDinh, DonGiaBan, SoLuongTon, MaDanhMuc) VALUES 
+('T001', 'Hapacol 650', 'Paracetamol 650mg', 'Giảm đau, hạ sốt', 25000.00, 100, 'DM01'),
+('T002', 'Augmentin 625mg', 'Amoxicillin 500mg, Acid Clavulanic 125mg', 'Điều trị nhiễm khuẩn', 145000.00, 50, 'DM02'),
+('T003', 'Siro ho Prospan', 'Cao khô lá thường xuân', 'Trị ho, viêm đường hô hấp', 78000.00, 30, 'DM03')
+ON DUPLICATE KEY UPDATE 
+    TenThuoc = VALUES(TenThuoc), 
+    ThanhPhan = VALUES(ThanhPhan), 
+    ChiDinh = VALUES(ChiDinh);
+
+ALTER TABLE LO_THUOC 
+    MODIFY SoLo VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO LO_THUOC (MaThuoc, SoLo, SoLuongThuocNhap, NSX, HSD, DonGiaNhap, NgayNhap, MaNCC, MaNV) VALUES 
+('T001', 'LO-2025-A1', 100, '2025-06-01', '2027-06-01', 18000.00, '2025-06-15', 'NCC01', 'NV03'),
+('T002', 'LO-2025-B1', 50, '2025-05-10', '2026-11-20', 115000.00, '2025-05-20', 'NCC03', 'NV03'),
+('T003', 'LO-2024-C1', 30, '2024-10-01', '2026-10-01', 58000.00, '2024-10-15', 'NCC02', 'NV01')
+ON DUPLICATE KEY UPDATE 
+    SoLo = VALUES(SoLo);
+
+-- =======================================================================================
+-- CÁC LỆNH SQL MÔ PHỎNG HÀNH ĐỘNG CỦA NÚT BẤM TRÊN WEB (DÀNH CHO CHẤM ĐIỂM)
+-- =======================================================================================
+
+-- --------------------------------------------------------
+-- I. CHỨC NĂNG QUẢN LÝ THUỐC (FORM THÔNG TIN THUỐC)
+-- --------------------------------------------------------
+
+-- 1. Nút "Lưu Thuốc Mới" (Thêm mới một loại thuốc vào danh mục)
+INSERT INTO THUOC (MaThuoc, TenThuoc, ThanhPhan, ChiDinh, DonGiaBan, SoLuongTon, MaDanhMuc) 
+VALUES ('T099', 'Thuốc Test Demo', 'Paracetamol 500mg', 'Giảm đau nhẹ', 15000.00, 0, 'DM01');
+
+-- 2. Nút "Cập nhật Thuốc" (Sửa thông tin khi người dùng thay đổi giá hoặc thành phần)
+UPDATE THUOC 
+SET TenThuoc = 'Thuốc Test Demo (Đã sửa)', 
+    DonGiaBan = 18000.00, 
+    ThanhPhan = 'Paracetamol 500mg, Cafein' 
+WHERE MaThuoc = 'T099';
+
+-- 3. Nút "Xóa Thuốc" (Xóa một loại thuốc ra khỏi hệ thống)
+DELETE FROM THUOC 
+WHERE MaThuoc = 'T099';
+
+-- --------------------------------------------------------
+-- II. CHỨC NĂNG QUẢN LÝ LÔ THUỐC VÀ NHẬP KHO (TRANSACTION)
+-- --------------------------------------------------------
+
+-- 1. Nút "Nhập Lô Thuốc Mới" (Yêu cầu dùng TRANSACTION để đảm bảo toàn vẹn dữ liệu)
+-- Hành động: Thêm lô mới -> Tự động cộng dồn số lượng vào kho tổng của Thuốc đó
+START TRANSACTION;
+    -- B1: Thêm dòng dữ liệu vào bảng LO_THUOC
+    INSERT INTO LO_THUOC (MaThuoc, SoLo, SoLuongThuocNhap, NSX, HSD, DonGiaNhap, NgayNhap, MaNCC, MaNV) 
+    VALUES ('T001', 'LO-TEST-2026', 200, '2026-11-01', '2028-11-01', 12000.00, '2026-11-07', 'NCC01', 'NV01');
+    
+    -- B2: Cộng dồn số lượng nhập (200) vào cột SoLuongTon của bảng THUOC
+    UPDATE THUOC 
+    SET SoLuongTon = SoLuongTon + 200 
+    WHERE MaThuoc = 'T001';
+COMMIT;
+-- (Nếu có lỗi xảy ra ở B1 hoặc B2, gọi lệnh ROLLBACK để hủy thao tác)
+
+-- 2. Nút "Sửa thông tin Lô Thuốc" (Chỉ sửa ngày tháng hoặc giá nhập, không sửa số lượng)
+UPDATE LO_THUOC 
+SET NSX = '2026-11-05', 
+    DonGiaNhap = 11500.00 
+WHERE MaThuoc = 'T001' AND SoLo = 'LO-TEST-2026';
+
+-- 3. Nút "Xóa Lô Thuốc" (Yêu cầu dùng TRANSACTION)
+-- Hành động: Trừ đi số lượng của lô sắp xóa khỏi kho tổng -> Sau đó mới xóa lô
+START TRANSACTION;
+    -- B1: Trừ số lượng tồn trong kho tổng tương ứng với số lượng của lô cần xóa
+    UPDATE THUOC 
+    SET SoLuongTon = SoLuongTon - (SELECT SoLuongThuocNhap FROM LO_THUOC WHERE MaThuoc = 'T001' AND SoLo = 'LO-TEST-2026')
+    WHERE MaThuoc = 'T001';
+    
+    -- B2: Xóa lô thuốc khỏi bảng LO_THUOC
+    DELETE FROM LO_THUOC 
+    WHERE MaThuoc = 'T001' AND SoLo = 'LO-TEST-2026';
+COMMIT;
