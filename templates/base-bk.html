@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#176b52">
+    <title>{% block title %}Quản lý nhà thuốc{% endblock %} | Pharma Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <a class="brand" href="{{ url_for('search_medicine') }}" aria-label="Pharma Manager - Trang tìm kiếm">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" role="img">
+                        <rect x="2" y="2" width="44" height="44" rx="14" fill="currentColor"/>
+                        <path d="M15 24h18M24 15v18" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <span class="brand-copy">
+                    <strong>PHARMA</strong>
+                    <small>MANAGEMENT SYSTEM</small>
+                </span>
+            </a>
+
+            <div class="sidebar-divider"></div>
+            <p class="nav-label">KHÔNG GIAN LÀM VIỆC</p>
+
+            <nav class="sidebar-nav" aria-label="Điều hướng chính">
+                <a class="nav-link {% if request.endpoint == 'manage_medicines' %}active{% endif %}"
+                   href="{{ url_for('manage_medicines') }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10.5 20.5 3.5 13.5a4.95 4.95 0 1 1 7-7l7 7a4.95 4.95 0 1 1-7 7Z"></path>
+                        <path d="m8.5 8.5 7 7"></path>
+                    </svg>
+                    <span>Thuốc &amp; Lô thuốc</span>
+                    <span class="nav-chevron">›</span>
+                </a>
+                
+                <a class="nav-link {% if request.endpoint == 'search_medicine' %}active{% endif %}"
+                   href="{{ url_for('search_medicine') }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="10.8" cy="10.8" r="6.8"></circle>
+                        <path d="m16 16 4.2 4.2"></path>
+                    </svg>
+                    <span>Tìm kiếm thuốc</span>
+                    <span class="nav-chevron">›</span>
+                </a>
+
+                <a class="nav-link {% if request.endpoint == 'inventory_report' %}active{% endif %}"
+                   href="{{ url_for('inventory_report') }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m3 7 9-4 9 4-9 4-9-4Z"></path>
+                        <path d="M3 7v10l9 4 9-4V7M12 11v10"></path>
+                    </svg>
+                    <span>Báo cáo tồn kho</span>
+                    <span class="nav-chevron">›</span>
+                </a>
+
+                <a class="nav-link {% if request.endpoint == 'expiry_report' %}active{% endif %}"
+                   href="{{ url_for('expiry_report') }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="M12 7v5l3.2 2"></path>
+                    </svg>
+                    <span>Cảnh báo hạn sử dụng</span>
+                    <span class="nav-chevron">›</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="sidebar-bottom-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M12 3 4.5 6v5.2c0 4.6 3.2 8.2 7.5 9.8 4.3-1.6 7.5-5.2 7.5-9.8V6L12 3Z"></path>
+                        <path d="m8.8 12 2.1 2.1 4.4-4.5"></path>
+                    </svg>
+                </div>
+                <strong>Quản lý tập trung</strong>
+                <p>Tra cứu và theo dõi dữ liệu nhà thuốc trên cùng một hệ thống.</p>
+            </div>
+        </aside>
+
+        <div class="main-column">
+            <header class="topbar">
+                <div>
+                    <p class="topbar-kicker">HỆ THỐNG QUẢN LÝ NHÀ THUỐC</p>
+                    <p class="topbar-subtitle">Tra cứu <span>·</span> Báo cáo <span>·</span> Kiểm soát hạn dùng</p>
+                </div>
+                <div class="topbar-label">
+                    <span class="topbar-indicator"></span>
+                    Không gian làm việc
+                </div>
+            </header>
+
+            <main class="main-content">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="flash-stack">
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer class="app-footer">
+                <span>PHARMA MANAGEMENT SYSTEM</span>
+                <span>Hệ thống quản lý nhà thuốc</span>
+            </footer>
+        </div>
+    </div>
+</body>
+</html>

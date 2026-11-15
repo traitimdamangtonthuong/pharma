@@ -61,19 +61,35 @@
                 </datalist>
             </label>
 
-            <!-- Ô NHẬP TÊN KHÁCH HÀNG (Gõ tay) -->
+            <!-- CHỌN KHÁCH HÀNG (CŨ HOẶC MỚI) -->
             <label class="form-field">
-                <span class="field-label">Tên khách hàng (*)</span>
-                <input type="text" name="ten_kh" required placeholder="Nhập họ tên khách (VD: Nguyễn Văn A)..."
-                       value="Khách vãng lai"
-                       style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                <span class="field-label">Khách hàng (*)</span>
+                <select id="select-customer" required style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                    <option value="">-- Chọn khách hàng đã có --</option>
+                    {% for c in customers %}
+                        <option value="{{ c.MaKH }}" data-name="{{ c.TenKH }}" data-phone="{{ c.SDT or '' }}">
+                            {{ c.MaKH }} - {{ c.TenKH }} {% if c.SDT %}({{ c.SDT }}){% endif %}
+                        </option>
+                    {% endfor %}
+                    <option value="NEW" style="font-weight: 700; color: #176b52;">+ Thêm khách hàng mới...</option>
+                </select>
+                <input type="hidden" name="ma_kh" id="hidden_ma_kh" value="">
             </label>
 
-            <!-- Ô NHẬP SỐ ĐIỆN THOẠI KHÁCH (Gõ tay) -->
+            <!-- Ô NHẬP TÊN KHÁCH HÀNG -->
             <label class="form-field">
-                <span class="field-label">Số điện thoại khách</span>
-                <input type="text" name="sdt_kh" placeholder="VD: 0987654321..."
-                       style="padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                <span class="field-label">Tên khách hàng (*)</span>
+                <input type="text" name="ten_kh" id="input_ten_kh" required 
+                       value="" placeholder="Vui lòng chọn khách hàng..." readonly
+                       style="background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+            </label>
+
+            <!-- Ô NHẬP SỐ ĐIỆN THOẠI KHÁCH -->
+            <label class="form-field">
+                <span class="field-label">Số điện thoại khách (*)</span>
+                <input type="text" name="sdt_kh" id="input_sdt_kh" 
+                       value="" placeholder="Số điện thoại..." readonly
+                       style="background: #f8fafc; padding: 10px 14px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
             </label>
         </div>
     </section>
@@ -303,13 +319,86 @@
         renderCart();
     }
 
+    // Xử lý sự kiện khi chọn Khách hàng
+    const selectCustomer = document.getElementById('select-customer');
+    const inputTenKH = document.getElementById('input_ten_kh');
+    const inputSdtKH = document.getElementById('input_sdt_kh');
+    const hiddenMaKH = document.getElementById('hidden_ma_kh');
+
+    if (selectCustomer) {
+        selectCustomer.addEventListener('change', function() {
+            const selected = selectCustomer.options[selectCustomer.selectedIndex];
+            const val = selected.value;
+
+            if (val === 'NEW') {
+                // Chế độ thêm khách mới: Mở khóa ô nhập (bắt buộc cả Tên và SĐT)
+                hiddenMaKH.value = 'NEW';
+                inputTenKH.value = '';
+                inputSdtKH.value = '';
+                inputTenKH.readOnly = false;
+                inputSdtKH.readOnly = false;
+                inputTenKH.required = true;
+                inputSdtKH.required = true;
+                inputTenKH.style.background = '#ffffff';
+                inputSdtKH.style.background = '#ffffff';
+                inputTenKH.placeholder = 'Nhập họ tên khách mới...';
+                inputSdtKH.placeholder = 'Nhập SĐT khách mới (bắt buộc, không được trùng)...';
+                inputTenKH.focus();
+            } else if (val) {
+                // Chế độ chọn khách cũ: Khóa ô nhập, tự động điền
+                hiddenMaKH.value = val;
+                inputTenKH.value = selected.getAttribute('data-name') || '';
+                inputSdtKH.value = selected.getAttribute('data-phone') || '';
+                inputTenKH.readOnly = true;
+                inputSdtKH.readOnly = true;
+                inputTenKH.style.background = '#f8fafc';
+                inputSdtKH.style.background = '#f8fafc';
+            } else {
+                // Chưa chọn khách hàng
+                hiddenMaKH.value = '';
+                inputTenKH.value = '';
+                inputSdtKH.value = '';
+                inputTenKH.readOnly = true;
+                inputSdtKH.readOnly = true;
+                inputTenKH.style.background = '#f8fafc';
+                inputSdtKH.style.background = '#f8fafc';
+                inputTenKH.placeholder = 'Vui lòng chọn khách hàng...';
+                inputSdtKH.placeholder = 'Số điện thoại...';
+            }
+        });
+    }
+
     // Kiểm tra trước khi bấm Lưu hóa đơn
     document.getElementById('invoice-form').addEventListener('submit', function(e) {
+        if (!selectCustomer.value) {
+            e.preventDefault();
+            alert('Vui lòng chọn một khách hàng hoặc chọn "+ Thêm khách hàng mới"!');
+            selectCustomer.focus();
+            return;
+        }
+
+        if (selectCustomer.value === 'NEW') {
+            if (!inputTenKH.value.trim()) {
+                e.preventDefault();
+                alert('Vui lòng nhập tên khách hàng mới!');
+                inputTenKH.focus();
+                return;
+            }
+            if (!inputSdtKH.value.trim()) {
+                e.preventDefault();
+                alert('Số điện thoại là bắt buộc đối với khách hàng mới để phân biệt khi trùng tên!');
+                inputSdtKH.focus();
+                return;
+            }
+        }
+
         if (cart.length === 0) {
             e.preventDefault();
             alert('Đơn hàng chưa có thuốc nào! Vui lòng chọn ít nhất 1 loại thuốc trước khi Lưu.');
+            return;
         }
     });
+
     document.getElementById('disp-today').value = new Date().toLocaleString('vi-VN');
 </script> 
 {% endblock %}

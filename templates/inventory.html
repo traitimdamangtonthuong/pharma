@@ -9,9 +9,19 @@
         <h1>Báo cáo tồn kho</h1>
         <p class="page-description">Theo dõi số lượng và giá trị tồn kho hiện tại của các loại thuốc.</p>
     </div>
-    <div class="heading-chip">
-        <span class="chip-dot"></span>
-        Báo cáo kho
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <a href="{{ url_for('export_inventory_excel') }}" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 16px; border-radius: 10px; font-weight: 600;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Xuất file Excel (.xlsx)
+        </a>
+        <div class="heading-chip">
+            <span class="chip-dot"></span>
+            Báo cáo kho
+        </div>
     </div>
 </section>
 

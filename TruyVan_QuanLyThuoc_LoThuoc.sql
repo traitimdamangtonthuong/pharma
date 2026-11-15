@@ -1,7 +1,7 @@
 USE quan_ly_nha_thuoc;
 SET NAMES utf8mb4;
 
-ALTER TABLE DANH_MUC MODIFY TenDanhMuc VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 1. Cập nhật Danh mục thuốc
 INSERT INTO DANH_MUC (MaDanhMuc, TenDanhMuc) VALUES 
 ('DM01', 'Thuốc giảm đau - hạ sốt'),
 ('DM02', 'Thuốc kháng sinh'),
@@ -11,12 +11,6 @@ INSERT INTO DANH_MUC (MaDanhMuc, TenDanhMuc) VALUES
 ON DUPLICATE KEY UPDATE TenDanhMuc = VALUES(TenDanhMuc);
 
 -- 2. Sửa và cập nhật Nhà cung cấp (mở rộng cả TenNCC, Diachi, Email)
-ALTER TABLE NHA_CUNG_CAP 
-    MODIFY TenNCC VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-    MODIFY Diachi VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-    MODIFY SDT VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-    MODIFY Email VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 INSERT INTO NHA_CUNG_CAP (MaNCC, TenNCC, Diachi, SDT, Email) VALUES 
 ('NCC01', 'Công ty Cổ phần Dược Hậu Giang (DHG)', 'Cần Thơ', '02923891433', 'dhg@dhgpharma.com.vn'),
 ('NCC02', 'Công ty CP Traphaco', 'Hà Nội', '02436815097', 'info@traphaco.com.vn'),
@@ -28,10 +22,6 @@ ON DUPLICATE KEY UPDATE
     Email = VALUES(Email);
 
 -- 3. Sửa và cập nhật Nhân viên (mở rộng cả TenNV và VaiTro)
-ALTER TABLE NHAN_VIEN 
-    MODIFY TenNV VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-    MODIFY VaiTro VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 INSERT INTO NHAN_VIEN (MaNV, TenNV, SDT, Email, VaiTro, Luong) VALUES 
 ('NV01', 'Nguyễn Văn An', '0901000001', 'annv@pharma.vn', 'Dược sĩ', 12000000.00),
 ('NV02', 'Trần Thị Bình', '0901000002', 'binhtt@pharma.vn', 'Bán hàng', 8500000.00),
@@ -40,10 +30,7 @@ ON DUPLICATE KEY UPDATE
     TenNV = VALUES(TenNV),
     VaiTro = VALUES(VaiTro);
 
-ALTER TABLE THUOC 
-    MODIFY TenThuoc VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-    MODIFY ThanhPhan VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-    MODIFY ChiDinh VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 4. Cập nhật thông tin Thuốc
 INSERT INTO THUOC (MaThuoc, TenThuoc, ThanhPhan, ChiDinh, DonGiaBan, SoLuongTon, MaDanhMuc) VALUES 
 ('T001', 'Hapacol 650', 'Paracetamol 650mg', 'Giảm đau, hạ sốt', 25000.00, 100, 'DM01'),
 ('T002', 'Augmentin 625mg', 'Amoxicillin 500mg, Acid Clavulanic 125mg', 'Điều trị nhiễm khuẩn', 145000.00, 50, 'DM02'),
@@ -53,8 +40,7 @@ ON DUPLICATE KEY UPDATE
     ThanhPhan = VALUES(ThanhPhan), 
     ChiDinh = VALUES(ChiDinh);
 
-ALTER TABLE LO_THUOC 
-    MODIFY SoLo VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 5. Cập nhật Lô thuốc
 INSERT INTO LO_THUOC (MaThuoc, SoLo, SoLuongThuocNhap, NSX, HSD, DonGiaNhap, NgayNhap, MaNCC, MaNV) VALUES 
 ('T001', 'LO-2025-A1', 100, '2025-06-01', '2027-06-01', 18000.00, '2025-06-15', 'NCC01', 'NV03'),
 ('T002', 'LO-2025-B1', 50, '2025-05-10', '2026-11-20', 115000.00, '2025-05-20', 'NCC03', 'NV03'),

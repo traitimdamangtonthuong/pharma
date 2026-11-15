@@ -1,8 +1,10 @@
-import re
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from io import BytesIO
+import re
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from db import get_db_connection
 
 app = Flask(__name__)
@@ -176,7 +178,155 @@ def inventory_report():
         summary=summary
     )
 
+@app.route("/inventory/export-excel")
+def export_inventory_excel():
+    """Xuất Báo cáo Tồn kho & Định giá ra file Excel (.xlsx) chuẩn biểu mẫu thực tế."""
+    sql = """
+        SELECT
+            t.MaThuoc,
+            t.TenThuoc,
+            dm.TenDanhMuc,
+            t.DonGiaBan,
+            t.SoLuongTon,
+            (t.DonGiaBan * COALESCE(t.SoLuongTon, 0)) AS GiaTriTonKho
+        FROM THUOC t
+        LEFT JOIN DANH_MUC dm ON t.MaDanhMuc = dm.MaDanhMuc
+        ORDER BY t.TenThuoc
+    """
+    inventory = query_db(sql)
 
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "BaoCaoTonKho"
+
+    # Khai báo các kiểu định dạng (Font, Border, Fill, Alignment)
+    font_unit = Font(name="Times New Roman", size=11, bold=True)
+    font_sub = Font(name="Times New Roman", size=10, italic=True)
+    font_title = Font(name="Times New Roman", size=15, bold=True)
+    font_header = Font(name="Times New Roman", size=11, bold=True, color="FFFFFF")
+    font_data = Font(name="Times New Roman", size=11)
+    font_bold = Font(name="Times New Roman", size=11, bold=True)
+    fill_header = PatternFill(start_color="1E6B52", end_color="1E6B52", fill_type="solid")
+    fill_total = PatternFill(start_color="EEF6F3", end_color="EEF6F3", fill_type="solid")
+    thin = Side(border_style="thin", color="888888")
+    border_cell = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # 1. Tiêu đề đơn vị & Biểu mẫu chứng từ
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "NHÀ THUỐC ĐẠT CHUẨN GPP"
+    ws["A1"].font = font_unit
+
+    ws.merge_cells("E1:G1")
+    ws["E1"] = "Mẫu số: BC-TK01"
+    ws["E1"].font = font_sub
+    ws["E1"].alignment = Alignment(horizontal="right")
+
+    ws.merge_cells("A2:G2")
+    ws["A2"] = "Địa chỉ: Quận Hai Bà Trưng, Hà Nội | Điện thoại: 024.3869.xxxx"
+    ws["A2"].font = font_sub
+
+    ws.merge_cells("A4:G4")
+    ws["A4"] = "BÁO CÁO TỒN KHO VÀ ĐỊNH GIÁ DƯỢC PHẨM"
+    ws["A4"].font = font_title
+    ws["A4"].alignment = Alignment(horizontal="center")
+
+    ws.merge_cells("A5:G5")
+    ws["A5"] = f"Ngày lập báo cáo: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Người lập: Lê Hoàng Nam (Quản lý kho) | Nơi nhận: Chủ nhà thuốc & Kế toán"
+    ws["A5"].font = font_sub
+    ws["A5"].alignment = Alignment(horizontal="center")
+
+    # 2. Tiêu đề cột bảng số liệu (Dòng 7)
+    headers = ["STT", "Mã thuốc", "Tên thuốc", "Danh mục", "Đơn giá bán (VNĐ)", "Số lượng tồn", "Giá trị tồn kho (VNĐ)"]
+    ws.append([])
+    ws.append(headers)
+    for col_idx in range(1, 8):
+        cell = ws.cell(row=7, column=col_idx)
+        cell.font = font_header
+        cell.fill = fill_header
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border_cell
+    ws.row_dimensions[7].height = 26
+
+    # 3. Đổ dữ liệu chi tiết
+    tong_so_luong = 0
+    tong_gia_tri = Decimal("0")
+    for idx, item in enumerate(inventory, start=1):
+        sl = int(item.get("SoLuongTon") or 0)
+        don_gia = Decimal(str(item.get("DonGiaBan") or 0))
+        gia_tri = Decimal(str(item.get("GiaTriTonKho") or 0))
+        tong_so_luong += sl
+        tong_gia_tri += gia_tri
+
+        row_idx = 7 + idx
+        ws.append([
+            idx,
+            item["MaThuoc"],
+            item["TenThuoc"],
+            item.get("TenDanhMuc") or "-",
+            float(don_gia),
+            sl,
+            float(gia_tri)
+        ])
+        for col_idx in range(1, 8):
+            c = ws.cell(row=row_idx, column=col_idx)
+            c.font = font_data
+            c.border = border_cell
+            if col_idx in (1, 2):
+                c.alignment = Alignment(horizontal="center")
+            elif col_idx in (5, 6, 7):
+                c.alignment = Alignment(horizontal="right")
+                c.number_format = "#,##0"
+
+    # 4. Dòng Tổng cộng
+    total_row = 8 + len(inventory)
+    ws.append(["", "", "TỔNG CỘNG TOÀN KHO", "", "", tong_so_luong, float(tong_gia_tri)])
+    for col_idx in range(1, 8):
+        c = ws.cell(row=total_row, column=col_idx)
+        c.font = font_bold
+        c.fill = fill_total
+        c.border = border_cell
+        if col_idx in (6, 7):
+            c.alignment = Alignment(horizontal="right")
+            c.number_format = "#,##0"
+
+    # 5. Khu vực ký xác nhận cuối trang
+    sign_row = total_row + 2
+    ws.merge_cells(start_row=sign_row, start_column=1, end_row=sign_row, end_column=3)
+    ws.cell(row=sign_row, column=1, value="NGƯỜI LẬP BÁO CÁO").font = font_bold
+    ws.cell(row=sign_row, column=1).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row, start_column=5, end_row=sign_row, end_column=7)
+    ws.cell(row=sign_row, column=5, value="CHỦ NHÀ THUỐC / KẾ TOÁN DUYỆT").font = font_bold
+    ws.cell(row=sign_row, column=5).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row + 1, start_column=1, end_row=sign_row + 1, end_column=3)
+    ws.cell(row=sign_row + 1, column=1, value="(Ký, ghi rõ họ tên)").font = font_sub
+    ws.cell(row=sign_row + 1, column=1).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row + 1, start_column=5, end_row=sign_row + 1, end_column=7)
+    ws.cell(row=sign_row + 1, column=5, value="(Ký, đóng dấu xác nhận)").font = font_sub
+    ws.cell(row=sign_row + 1, column=5).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row + 4, start_column=1, end_row=sign_row + 4, end_column=3)
+    ws.cell(row=sign_row + 4, column=1, value="Lê Hoàng Nam").font = font_bold
+    ws.cell(row=sign_row + 4, column=1).alignment = Alignment(horizontal="center")
+
+    # Căn độ rộng các cột
+    col_widths = {"A": 7, "B": 14, "C": 30, "D": 28, "E": 20, "F": 16, "G": 22}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = f"BaoCao_TonKho_{date.today().strftime('%Y%m%d')}.xlsx"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
 @app.route("/expiry")
 def expiry_report():
     sql = """
@@ -211,7 +361,161 @@ def expiry_report():
         expiry_list=expiry_list
     )
 
+@app.route("/expiry/export-excel")
+def export_expiry_excel():
+    """Xuất Báo cáo Cảnh báo Hạn sử dụng ra file Excel (.xlsx) chuẩn biểu mẫu thực tế."""
+    sql = """
+        SELECT
+            lt.MaThuoc,
+            t.TenThuoc,
+            dm.TenDanhMuc,
+            lt.SoLo,
+            lt.NSX,
+            lt.HSD,
+            lt.SoLuongThuocNhap,
+            ncc.TenNCC,
+            DATEDIFF(lt.HSD, CURDATE()) AS SoNgayConLai,
+            CASE
+                WHEN lt.HSD < CURDATE() THEN 'Đã hết hạn'
+                ELSE 'Sắp hết hạn'
+            END AS TrangThai
+        FROM LO_THUOC lt
+        JOIN THUOC t ON lt.MaThuoc = t.MaThuoc
+        LEFT JOIN DANH_MUC dm ON t.MaDanhMuc = dm.MaDanhMuc
+        LEFT JOIN NHA_CUNG_CAP ncc ON lt.MaNCC = ncc.MaNCC
+        WHERE
+            lt.HSD IS NOT NULL
+            AND lt.HSD <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+        ORDER BY lt.HSD ASC
+    """
+    expiry_list = query_db(sql)
 
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "CanhBaoHanSuDung"
+
+    font_unit = Font(name="Times New Roman", size=11, bold=True)
+    font_sub = Font(name="Times New Roman", size=10, italic=True)
+    font_title = Font(name="Times New Roman", size=15, bold=True)
+    font_header = Font(name="Times New Roman", size=11, bold=True, color="FFFFFF")
+    font_data = Font(name="Times New Roman", size=11)
+    font_bold = Font(name="Times New Roman", size=11, bold=True)
+    font_red = Font(name="Times New Roman", size=11, bold=True, color="B91C1C")
+    font_amber = Font(name="Times New Roman", size=11, bold=True, color="B45309")
+    fill_header = PatternFill(start_color="991B1B", end_color="991B1B", fill_type="solid")
+    fill_expired = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+    fill_warning = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+    thin = Side(border_style="thin", color="888888")
+    border_cell = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # 1. Tiêu đề đơn vị & Biểu mẫu chứng từ
+    ws.merge_cells("A1:E1")
+    ws["A1"] = "NHÀ THUỐC ĐẠT CHUẨN GPP"
+    ws["A1"].font = font_unit
+
+    ws.merge_cells("F1:J1")
+    ws["F1"] = "Mẫu số: BC-HSD02"
+    ws["F1"].font = font_sub
+    ws["F1"].alignment = Alignment(horizontal="right")
+
+    ws.merge_cells("A2:J2")
+    ws["A2"] = "Địa chỉ: Quận Hai Bà Trưng, Hà Nội | Điện thoại: 024.3869.xxxx"
+    ws["A2"].font = font_sub
+
+    ws.merge_cells("A4:J4")
+    ws["A4"] = "BÁO CÁO KIỂM SOÁT & CẢNH BÁO THUỐC HẾT HẠN / SẮP HẾT HẠN (30 NGÀY)"
+    ws["A4"].font = font_title
+    ws["A4"].alignment = Alignment(horizontal="center")
+
+    ws.merge_cells("A5:J5")
+    ws["A5"] = f"Ngày kiểm tra: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Người lập: Nguyễn Văn An (Dược sĩ) | Nơi nhận: Dược sĩ quầy & Chủ nhà thuốc"
+    ws["A5"].font = font_sub
+    ws["A5"].alignment = Alignment(horizontal="center")
+
+    # 2. Tiêu đề cột bảng số liệu (Dòng 7)
+    headers = [
+        "STT", "Mã thuốc", "Tên thuốc", "Danh mục", "Số lô",
+        "Ngày SX", "Hạn sử dụng", "SL nhập lô", "Nhà cung cấp", "Tình trạng"
+    ]
+    ws.append([])
+    ws.append(headers)
+    for col_idx in range(1, 11):
+        cell = ws.cell(row=7, column=col_idx)
+        cell.font = font_header
+        cell.fill = fill_header
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border_cell
+    ws.row_dimensions[7].height = 26
+
+    # 3. Đổ dữ liệu các lô thuốc cảnh báo
+    for idx, item in enumerate(expiry_list, start=1):
+        so_ngay = item.get("SoNgayConLai") or 0
+        is_expired = so_ngay < 0
+        status_text = f"Đã hết hạn (Quá {-so_ngay} ngày)" if is_expired else f"Sắp hết hạn (Còn {so_ngay} ngày)"
+
+        row_idx = 7 + idx
+        ws.append([
+            idx,
+            item["MaThuoc"],
+            item["TenThuoc"],
+            item.get("TenDanhMuc") or "-",
+            item["SoLo"],
+            item["NSX"].strftime("%d/%m/%Y") if item.get("NSX") else "-",
+            item["HSD"].strftime("%d/%m/%Y") if item.get("HSD") else "-",
+            int(item.get("SoLuongThuocNhap") or 0),
+            item.get("TenNCC") or "-",
+            status_text
+        ])
+        for col_idx in range(1, 11):
+            c = ws.cell(row=row_idx, column=col_idx)
+            c.font = font_data
+            c.border = border_cell
+            if col_idx in (1, 2, 5, 6, 7):
+                c.alignment = Alignment(horizontal="center")
+            elif col_idx == 8:
+                c.alignment = Alignment(horizontal="right")
+                c.number_format = "#,##0"
+            elif col_idx == 10:
+                c.font = font_red if is_expired else font_amber
+                c.fill = fill_expired if is_expired else fill_warning
+                c.alignment = Alignment(horizontal="center")
+
+    # 4. Khu vực ký xác nhận cuối trang
+    sign_row = 9 + len(expiry_list)
+    ws.merge_cells(start_row=sign_row, start_column=1, end_row=sign_row, end_column=4)
+    ws.cell(row=sign_row, column=1, value="DƯỢC SĨ LẬP BÁO CÁO").font = font_bold
+    ws.cell(row=sign_row, column=1).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row, start_column=7, end_row=sign_row, end_column=10)
+    ws.cell(row=sign_row, column=7, value="CHỦ NHÀ THUỐC PHÊ DUYỆT XỬ LÝ").font = font_bold
+    ws.cell(row=sign_row, column=7).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row + 1, start_column=1, end_row=sign_row + 1, end_column=4)
+    ws.cell(row=sign_row + 1, column=1, value="(Ký, ghi rõ họ tên)").font = font_sub
+    ws.cell(row=sign_row + 1, column=1).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row + 1, start_column=7, end_row=sign_row + 1, end_column=10)
+    ws.cell(row=sign_row + 1, column=7, value="(Ký, đóng dấu xác nhận)").font = font_sub
+    ws.cell(row=sign_row + 1, column=7).alignment = Alignment(horizontal="center")
+
+    ws.merge_cells(start_row=sign_row + 4, start_column=1, end_row=sign_row + 4, end_column=4)
+    ws.cell(row=sign_row + 4, column=1, value="Nguyễn Văn An").font = font_bold
+    ws.cell(row=sign_row + 4, column=1).alignment = Alignment(horizontal="center")
+
+    col_widths = {"A": 6, "B": 12, "C": 26, "D": 24, "E": 15, "F": 14, "G": 14, "H": 14, "I": 28, "J": 26}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = f"BaoCao_CanhBaoHSD_{date.today().strftime('%Y%m%d')}.xlsx"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 # ===========================================================================
 # KIỂM TRA DỮ LIỆU ĐẦU VÀO & QUẢN LÝ 4 MỤC CON TRÊN /medicines
 # ===========================================================================
@@ -848,6 +1152,7 @@ def create_invoice():
     elif request.method == "POST":
         ma_hd = request.form.get("ma_hd")
         ten_nv_input = request.form.get("ten_nv", "").strip()
+        ma_kh_input = request.form.get("ma_kh", "").strip()
         ten_kh_input = request.form.get("ten_kh", "Khách vãng lai").strip()
         sdt_kh_input = request.form.get("sdt_kh", "").strip()
         cart_raw = request.form.get("cart_data", "[]")
@@ -873,34 +1178,69 @@ def create_invoice():
             # BẮT ĐẦU TRANSACTION: Đảm bảo tính toàn vẹn (ACID)
             conn.start_transaction()
 
-     # XỬ LÝ 1: Tìm mã nhân viên từ tên người dùng nhập vào
+            # XỬ LÝ 1: Tìm mã nhân viên từ tên người dùng nhập vào
             cursor.execute("SELECT MaNV FROM NHAN_VIEN WHERE TenNV LIKE %s OR MaNV = %s LIMIT 1", (f"%{ten_nv_input}%", ten_nv_input))
             nv_row = cursor.fetchone()
             ma_nv = nv_row["MaNV"] if nv_row else "NV01"
 
-            # XỬ LÝ 2: Tự động tìm hoặc tạo mới khách hàng vào CSDL
+            # XỬ LÝ 2: Định danh khách hàng
             ma_kh = None
-            if sdt_kh_input:
-                cursor.execute("SELECT MaKH FROM KHACH_HANG WHERE SDT = %s LIMIT 1", (sdt_kh_input,))
-                kh_row = cursor.fetchone()
-                if kh_row:
-                    ma_kh = kh_row["MaKH"]
+            clean_sdt = re.sub(r'[\s.\-]', '', sdt_kh_input) if sdt_kh_input else ""
 
-            if not ma_kh:
-                # Tự động sinh mã khách hàng mới (VD: KH04, KH05...)
-                cursor.execute("SELECT MaKH FROM KHACH_HANG ORDER BY MaKH DESC LIMIT 1")
-                last_kh = cursor.fetchone()
-                try:
-                    num = int(last_kh["MaKH"].replace("KH", "")) + 1 if last_kh else 1
-                    ma_kh = f"KH{num:02d}"
-                except Exception:
-                    ma_kh = f"KH{int(datetime.now().timestamp()) % 1000:03d}"
+            # 2.1. Chọn khách hàng đã có trong hệ thống (kể cả Khách vãng lai nếu chọn trong danh mục)
+            if ma_kh_input and ma_kh_input != "NEW":
+                cursor.execute("SELECT MaKH, TenKH FROM KHACH_HANG WHERE MaKH = %s LIMIT 1", (ma_kh_input,))
+                kh_exist = cursor.fetchone()
+                if not kh_exist:
+                    raise Exception("Khách hàng đã chọn không tồn tại trong hệ thống. Vui lòng tải lại trang!")
+                ma_kh = kh_exist["MaKH"]
 
-                # Thêm khách hàng mới vào bảng KHACH_HANG để không bị lỗi khóa ngoại
+            # 2.2. Thêm khách hàng mới (chọn "+ Thêm khách hàng mới")
+            elif ma_kh_input == "NEW":
+                if not ten_kh_input:
+                    raise Exception("Vui lòng nhập họ tên khách hàng mới!")
+
+                # SĐT là bắt buộc đối với khách mới
+                if not clean_sdt:
+                    raise Exception("Số điện thoại là thông tin bắt buộc khi thêm khách hàng mới (để phân biệt khách hàng khi trùng tên)!")
+
+                if not clean_sdt.isdigit() or len(clean_sdt) < 8 or len(clean_sdt) > 15:
+                    raise Exception(f'Số điện thoại "{sdt_kh_input}" không hợp lệ. Vui lòng nhập từ 8 đến 15 chữ số!')
+
+                # Kiểm tra SĐT DUY NHẤT: Tên có thể trùng, nhưng mỗi khách chỉ sử dụng 1 SĐT
+                cursor.execute("SELECT MaKH, TenKH FROM KHACH_HANG WHERE SDT = %s LIMIT 1", (clean_sdt,))
+                phone_match = cursor.fetchone()
+                if phone_match:
+                    raise Exception(
+                        f'Số điện thoại "{clean_sdt}" đã được đăng ký bởi khách hàng "{phone_match["TenKH"]}" '
+                        f'(mã {phone_match["MaKH"]}). Mỗi khách hàng chỉ được dùng 1 số điện thoại duy nhất. '
+                        f'Vui lòng chọn khách hàng này từ danh sách hoặc kiểm tra lại SĐT!'
+                    )
+
+                # Sinh mã khách hàng mới tăng dần an toàn (bằng số nguyên lớn nhất)
+                cursor.execute("SELECT MaKH FROM KHACH_HANG WHERE MaKH LIKE 'KH%'")
+                all_kh = cursor.fetchall()
+                max_num = 0
+                for row in all_kh:
+                    raw_id = row.get("MaKH", "")
+                    digits = re.findall(r'\d+', raw_id)
+                    if digits:
+                        try:
+                            num = int(digits[-1])
+                            if num > max_num:
+                                max_num = num
+                        except ValueError:
+                            pass
+                ma_kh = f"KH{max_num + 1:02d}"
+
+                # Thêm khách hàng mới vào CSDL (cho phép trùng tên, nhưng SĐT là duy nhất)
                 cursor.execute("""
                     INSERT INTO KHACH_HANG (MaKH, TenKH, SDT) 
                     VALUES (%s, %s, %s)
-                """, (ma_kh, ten_kh_input, sdt_kh_input if sdt_kh_input else None))
+                """, (ma_kh, ten_kh_input, clean_sdt))
+
+            else:
+                raise Exception("Vui lòng chọn khách hàng từ danh sách hoặc chọn '+ Thêm khách hàng mới'!")
             # BƯỚC 1: Kiểm tra lại tồn kho tức thời trong DB trước khi bán
             for item in cart:
                 cursor.execute("SELECT SoLuongTon, TenThuoc FROM THUOC WHERE MaThuoc = %s", (item["maThuoc"],))

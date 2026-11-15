@@ -112,18 +112,18 @@ CREATE TABLE IF NOT EXISTS LO_THUOC (
     CONSTRAINT fk_lothuoc_ncc
         FOREIGN KEY (MaNCC) REFERENCES NHA_CUNG_CAP(MaNCC)
         ON UPDATE CASCADE
-        ON DELETE SET NULL,
+        ON DELETE RESTRICT,
     CONSTRAINT fk_lothuoc_nv
         FOREIGN KEY (MaNV) REFERENCES NHAN_VIEN(MaNV)
         ON UPDATE CASCADE
-        ON DELETE SET NULL
+        ON DELETE RESTRICT
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------------
 -- 8. BẢNG HOA_DON (FK → KHACH_HANG, NHAN_VIEN)
---    Quan hệ: KhachHang (1) —Nhap— (N) HoaDon
+--    Quan hệ: KhachHang (1) —Mua— (N) HoaDon
 --             NhanVien  (1) —Xuat— (N) HoaDon
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS HOA_DON (
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS HOA_DON (
     CONSTRAINT fk_hoadon_khachhang
         FOREIGN KEY (MaKH) REFERENCES KHACH_HANG(MaKH)
         ON UPDATE CASCADE
-        ON DELETE SET NULL,
+        ON DELETE RESTRICT,
     CONSTRAINT fk_hoadon_nhanvien
         FOREIGN KEY (MaNV) REFERENCES NHAN_VIEN(MaNV)
         ON UPDATE CASCADE

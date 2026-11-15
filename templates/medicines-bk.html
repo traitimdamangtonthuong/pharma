@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% block title %}Quản lý thông tin thuốc và lô thuốc{% endblock %}
+
+{% block content %}
+{% set med_mode = 'update_medicine' if form.get('action') == 'update_medicine' else 'add_medicine' %}
+{% set dm_mode = 'update_category' if form.get('action') == 'update_category' else 'add_category' %}
+{% set ncc_mode = 'update_supplier' if form.get('action') == 'update_supplier' else 'add_supplier' %}
+
+<div class="page-heading">
+    <div>
+        <p class="page-eyebrow">NGHIỆP VỤ NHẬP LIỆU - FORM 1</p>
+        <h1>Quản lý Thuốc &amp; Lô thuốc</h1>
+        <p class="page-description">Thêm, cập nhật thuốc; nhập lô (tự cộng tồn kho); quản lý danh mục và nhà cung cấp.</p>
+    </div>
+    <span class="heading-chip">
+        <span class="chip-dot"></span>
+        Quản lý Thuốc &amp; Lô thuốc
+    </span>
+</div>
+
+<!-- =================== 1. FORM THUỐC =================== -->
+<div class="panel form-panel">
+    <div class="panel-heading">
+        <h2 class="panel-title" id="medicine-form-title">1. Thêm mới hoặc cập nhật thông tin Thuốc</h2>
+        <p class="panel-description">Tồn kho không nhập tay: số lượng chỉ thay đổi khi nhập lô, xóa lô hoặc bán hàng.</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('manage_medicines') }}" id="medicine-form">
+        <input type="hidden" name="action" id="medicine-action" value="{{ med_mode }}">
+
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="field-label">Mã thuốc (*)</label>
+                <input type="text" class="form-input" name="ma_thuoc" id="ma_thuoc" placeholder="VD: T050" maxlength="20"
+                       value="{{ form.get('ma_thuoc', '') }}" {% if med_mode == 'update_medicine' %}readonly{% endif %} required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Tên thuốc (*)</label>
+                <input type="text" class="form-input" name="ten_thuoc" id="ten_thuoc" placeholder="VD: Panadol Extra" maxlength="255"
+                       value="{{ form.get('ten_thuoc', '') }}" required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Danh mục thuốc (*)</label>
+                {% set dm_creating = form.get('ma_danh_muc_new') or form.get('ten_danh_muc_new') %}
+                <div id="mode_select_danhmuc" style="{{ 'display:none;' if dm_creating else '' }}">
+                    <select class="form-input" name="ma_danh_muc" id="ma_danh_muc">
+                        <option value="">-- Chọn danh mục --</option>
+                        {% for dm in categories %}
+                            <option value="{{ dm.MaDanhMuc }}" {% if form.get('ma_danh_muc') == dm.MaDanhMuc %}selected{% endif %}>{{ dm.MaDanhMuc }} - {{ dm.TenDanhMuc }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-1" onclick="toggleDanhMuc(true)" style="font-size: 0.8rem; padding: 2px 8px;">
+                        + Hoặc tạo danh mục mới
+                    </button>
+                </div>
+                <div id="mode_create_danhmuc" class="inline-create" style="{{ '' if dm_creating else 'display:none;' }}">
+                    <input type="text" name="ma_danh_muc_new" class="form-input mb-1" placeholder="Mã danh mục mới (VD: DM06)" maxlength="20"
+                           value="{{ form.get('ma_danh_muc_new', '') }}">
+                    <input type="text" name="ten_danh_muc_new" class="form-input mb-1" placeholder="Tên danh mục mới" maxlength="255"
+                           value="{{ form.get('ten_danh_muc_new', '') }}">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleDanhMuc(false)" style="font-size: 0.8rem;">
+                        Quay lại chọn
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="field-label">Đơn giá bán (VNĐ) (*)</label>
+                <input type="number" step="0.01" min="0" class="form-input" name="don_gia_ban" id="don_gia_ban" placeholder="VD: 35000"
+                       value="{{ form.get('don_gia_ban', '') }}" required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Tồn kho hiện tại</label>
+                <input type="number" class="form-input" id="so_luong_ton" value="0" disabled>
+                <span class="form-hint">Tự động tính từ các lô nhập, không sửa tay ở đây.</span>
+            </div>
+            <div class="form-field" style="justify-content: flex-end;">
+                <div class="form-actions">
+                    <button type="submit" class="button button-primary" id="med-submit-btn">
+                        <span id="med-btn-text">{{ 'Lưu Cập Nhật' if med_mode == 'update_medicine' else 'Lưu Thuốc Mới' }}</span>
+                    </button>
+                    <button type="button" class="button button-light" onclick="resetMedicineForm()">Hủy / Làm mới</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-grid-2" style="margin-top: 10px;">
+            <div class="form-field">
+                <label class="field-label">Thành phần</label>
+                <textarea class="form-textarea" name="thanh_phan" id="thanh_phan" maxlength="255" placeholder="Nhập thành phần hoạt chất...">{{ form.get('thanh_phan', '') }}</textarea>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Chỉ định sử dụng</label>
+                <textarea class="form-textarea" name="chi_dinh" id="chi_dinh" maxlength="255" placeholder="Nhập chỉ định...">{{ form.get('chi_dinh', '') }}</textarea>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- =================== 2. FORM NHẬP LÔ =================== -->
+<div class="panel form-panel" style="border-left: 4px solid var(--primary);">
+    <div class="panel-heading">
+        <h2 class="panel-title">2. Lập thông tin Nhập Lô Thuốc mới (Tự động cộng tồn kho)</h2>
+        <p class="panel-description">Ghi nhận số lượng nhập, hạn sử dụng và nhà cung cấp. Nếu có lỗi, toàn bộ thao tác (kể cả tạo nhà cung cấp mới) sẽ được hủy.</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('manage_medicines') }}">
+        <input type="hidden" name="action" value="add_batch">
+
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="field-label">Chọn thuốc cần nhập lô (*)</label>
+                <select class="form-input" name="batch_ma_thuoc" required>
+                    <option value="">-- Chọn thuốc --</option>
+                    {% for t in medicines %}
+                        <option value="{{ t.MaThuoc }}" {% if form.get('batch_ma_thuoc') == t.MaThuoc %}selected{% endif %}>{{ t.MaThuoc }} - {{ t.TenThuoc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Số lô sản xuất (*)</label>
+                <input type="text" class="form-input" name="so_lo" placeholder="VD: LO-2026-X1" maxlength="100" value="{{ form.get('so_lo', '') }}" required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Số lượng nhập (*)</label>
+                <input type="number" min="1" class="form-input" name="so_luong_nhap" placeholder="VD: 100" value="{{ form.get('so_luong_nhap', '') }}" required>
+            </div>
+        </div>
+
+        <div class="form-grid-4">
+            <div class="form-field">
+                <label class="field-label">Đơn giá nhập (VNĐ) (*)</label>
+                <input type="number" step="0.01" min="0" class="form-input" name="don_gia_nhap" placeholder="VD: 20000" value="{{ form.get('don_gia_nhap', '') }}" required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Ngày sản xuất (NSX)</label>
+                <input type="date" class="form-input" name="nsx" value="{{ form.get('nsx', '') }}">
+            </div>
+            <div class="form-field">
+                <label class="field-label">Hạn sử dụng (HSD) (*)</label>
+                <input type="date" class="form-input" name="hsd" value="{{ form.get('hsd', '') }}" required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Ngày nhập kho</label>
+                <input type="date" class="form-input" name="ngay_nhap" value="{{ form.get('ngay_nhap') or today }}">
+            </div>
+        </div>
+
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label class="field-label">Nhà cung cấp (*)</label>
+                {% set ncc_creating = form.get('ma_ncc_new') or form.get('ten_ncc_new') or form.get('diachi_ncc_new') or form.get('sdt_ncc_new') or form.get('email_ncc_new') %}
+                <div id="mode_select_ncc" style="{{ 'display:none;' if ncc_creating else '' }}">
+                    <select class="form-input" name="ma_ncc" id="ma_ncc">
+                        <option value="">-- Chọn nhà cung cấp --</option>
+                        {% for ncc in suppliers %}
+                            <option value="{{ ncc.MaNCC }}" {% if form.get('ma_ncc') == ncc.MaNCC %}selected{% endif %}>{{ ncc.MaNCC }} - {{ ncc.TenNCC }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-1" onclick="toggleNCC(true)" style="font-size: 0.8rem; padding: 2px 8px;">
+                        + Tạo nhà cung cấp mới
+                    </button>
+                </div>
+                <div id="mode_create_ncc" class="inline-create" style="{{ '' if ncc_creating else 'display:none;' }}">
+                    <div class="form-grid-2">
+                        <input type="text" name="ma_ncc_new" class="form-input mb-1" placeholder="Mã NCC (*) VD: NCC04" maxlength="20" value="{{ form.get('ma_ncc_new', '') }}">
+                        <input type="text" name="ten_ncc_new" class="form-input mb-1" placeholder="Tên nhà cung cấp (*)" maxlength="255" value="{{ form.get('ten_ncc_new', '') }}">
+                        <input type="text" name="diachi_ncc_new" class="form-input mb-1" placeholder="Địa chỉ" maxlength="255" value="{{ form.get('diachi_ncc_new', '') }}">
+                        <input type="text" name="sdt_ncc_new" class="form-input mb-1" placeholder="Số điện thoại" maxlength="20" value="{{ form.get('sdt_ncc_new', '') }}">
+                        <input type="email" name="email_ncc_new" class="form-input mb-1" placeholder="Email" maxlength="100" value="{{ form.get('email_ncc_new', '') }}">
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleNCC(false)" style="font-size: 0.8rem;">
+                        Quay lại chọn
+                    </button>
+                </div>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Nhân viên phụ trách nhập</label>
+                <select class="form-input" name="ma_nv">
+                    <option value="">-- Chọn nhân viên --</option>
+                    {% for nv in employees %}
+                        <option value="{{ nv.MaNV }}" {% if form.get('ma_nv') == nv.MaNV %}selected{% endif %}>{{ nv.TenNV }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="button button-warning" style="width: 100%; margin-top: 14px;">
+                    <span>Xác nhận Nhập Lô &amp; Cộng Tồn Kho</span>
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- =================== BẢNG THUỐC =================== -->
+<div class="panel table-panel">
+    <div style="padding: 20px 22px 14px; border-bottom: 1px solid var(--border);">
+        <h3 class="section-title">Danh sách thông tin thuốc hiện có</h3>
+        <p class="result-count">Tổng số: <strong>{{ medicines|length }}</strong> loại thuốc</p>
+    </div>
+    <div class="table-scroll">
+        <table class="data-table" style="min-width: 1000px;">
+            <thead>
+                <tr>
+                    <th>Mã thuốc</th><th>Tên thuốc</th><th>Danh mục</th><th>Đơn giá bán</th>
+                    <th>Tồn kho tổng</th><th>Thành phần</th><th style="text-align: right;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in medicines %}
+                <tr>
+                    <td><span class="code-chip">{{ t.MaThuoc }}</span></td>
+                    <td><span class="medicine-name">{{ t.TenThuoc }}</span></td>
+                    <td>{{ t.TenDanhMuc or '---' }}</td>
+                    <td class="numeric-cell value-cell">{{ "{:,.0f}".format(t.DonGiaBan).replace(",", ".") }} đ</td>
+                    <td><span class="stock-value">{{ t.SoLuongTon or 0 }}</span></td>
+                    <td><div class="long-text" title="{{ t.ThanhPhan }}">{{ t.ThanhPhan or '---' }}</div></td>
+                    <td style="text-align: right;">
+                        <div class="action-group" style="justify-content: flex-end;">
+                            <button type="button" class="button button-light button-sm btn-edit"
+                                    data-ma="{{ t.MaThuoc }}" data-ten="{{ t.TenThuoc }}" data-madm="{{ t.MaDanhMuc or '' }}"
+                                    data-gia="{{ t.DonGiaBan }}" data-ton="{{ t.SoLuongTon or 0 }}"
+                                    data-thanhphan="{{ t.ThanhPhan or '' }}" data-chidinh="{{ t.ChiDinh or '' }}">Sửa</button>
+                            <form action="{{ url_for('delete_medicine', ma_thuoc=t.MaThuoc) }}" method="POST" style="display:inline;"
+                                  onsubmit="return confirm('Xóa thuốc này sẽ xóa cả các lô thuốc liên quan. Bạn có chắc chắn không?');">
+                                <button type="submit" class="button button-danger button-sm">Xóa</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7"><div class="empty-state"><strong>Chưa có dữ liệu thuốc</strong>
+                    <p>Hãy dùng form phía trên để thêm loại thuốc đầu tiên.</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- =================== BẢNG LÔ THUỐC =================== -->
+<div class="panel table-panel">
+    <div style="padding: 20px 22px 14px; border-bottom: 1px solid var(--border);">
+        <h3 class="section-title">Danh sách lô thuốc đã nhập</h3>
+        <p class="result-count">Hiển thị tối đa 200 lô mới nhất: <strong>{{ batches|length }}</strong> lô</p>
+    </div>
+    <div class="table-scroll">
+        <table class="data-table" style="min-width: 1100px;">
+            <thead>
+                <tr>
+                    <th>Thuốc</th><th>Số lô</th><th>SL nhập</th><th>NSX</th><th>HSD</th>
+                    <th>Đơn giá nhập</th><th>Ngày nhập</th><th>Nhà cung cấp</th><th>Nhân viên</th>
+                    <th style="text-align: right;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in batches %}
+                <tr>
+                    <td><span class="code-chip">{{ b.MaThuoc }}</span> {{ b.TenThuoc }}</td>
+                    <td><span class="code-chip code-chip-muted">{{ b.SoLo }}</span></td>
+                    <td class="numeric-cell">{{ b.SoLuongThuocNhap }}</td>
+                    <td class="date-cell">{{ b.NSX.strftime('%d/%m/%Y') if b.NSX else '-' }}</td>
+                    <td>
+                        {% if b.HSD %}
+                            <span class="date-cell">{{ b.HSD.strftime('%d/%m/%Y') }}</span>
+                            {% if b.SoNgayConLai < 0 %}<span class="status-pill status-pill-expired">Đã hết hạn</span>
+                            {% elif b.SoNgayConLai <= 30 %}<span class="status-pill status-pill-warning">Còn {{ b.SoNgayConLai }} ngày</span>{% endif %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="numeric-cell">{{ "{:,.0f}".format(b.DonGiaNhap).replace(",", ".") }} đ</td>
+                    <td class="date-cell">{{ b.NgayNhap.strftime('%d/%m/%Y') if b.NgayNhap else '-' }}</td>
+                    <td>{{ b.TenNCC or '-' }}</td>
+                    <td>{{ b.TenNV or '-' }}</td>
+                    <td style="text-align: right;">
+                        <form action="{{ url_for('delete_batch') }}" method="POST" style="display:inline;"
+                              onsubmit="return confirm('Xóa lô này sẽ trừ {{ b.SoLuongThuocNhap }} khỏi tồn kho của thuốc. Tiếp tục?');">
+                            <input type="hidden" name="ma_thuoc" value="{{ b.MaThuoc }}">
+                            <input type="hidden" name="so_lo" value="{{ b.SoLo }}">
+                            <button type="submit" class="button button-danger button-sm">Xóa lô</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10"><div class="empty-state"><strong>Chưa có lô thuốc nào</strong>
+                    <p>Dùng form "Nhập lô" phía trên để thêm lô đầu tiên.</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- =================== 3. DANH MỤC =================== -->
+<div class="panel form-panel" id="danh-muc">
+    <div class="panel-heading">
+        <h2 class="panel-title" id="dm-form-title">3. Quản lý Danh mục thuốc</h2>
+        <p class="panel-description">Mã danh mục là khóa chính nên không được trùng. Muốn đổi tên một danh mục có sẵn, hãy bấm "Sửa" ở bảng bên dưới.</p>
+    </div>
+    <form method="POST" action="{{ url_for('manage_medicines') }}#danh-muc" id="dm-form">
+        <input type="hidden" name="action" id="dm-action" value="{{ dm_mode }}">
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="field-label">Mã danh mục (*)</label>
+                <input type="text" class="form-input" name="dm_ma" id="dm_ma" placeholder="VD: DM06" maxlength="20"
+                       value="{{ form.get('dm_ma', '') }}" {% if dm_mode == 'update_category' %}readonly{% endif %} required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Tên danh mục (*)</label>
+                <input type="text" class="form-input" name="dm_ten" id="dm_ten" placeholder="VD: Thuốc tim mạch" maxlength="255"
+                       value="{{ form.get('dm_ten', '') }}" required>
+            </div>
+            <div class="form-field" style="justify-content: flex-end;">
+                <div class="form-actions">
+                    <button type="submit" class="button button-primary"><span id="dm-btn-text">{{ 'Lưu Cập Nhật' if dm_mode == 'update_category' else 'Thêm Danh Mục' }}</span></button>
+                    <button type="button" class="button button-light" onclick="resetSimpleForm('dm')">Hủy / Làm mới</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="table-scroll" style="margin-top: 8px;">
+        <table class="data-table">
+            <thead><tr><th>Mã danh mục</th><th>Tên danh mục</th><th>Số thuốc</th><th style="text-align: right;">Thao tác</th></tr></thead>
+            <tbody>
+                {% for dm in categories %}
+                <tr>
+                    <td><span class="code-chip">{{ dm.MaDanhMuc }}</span></td>
+                    <td>{{ dm.TenDanhMuc }}</td>
+                    <td><span class="badge-count {{ 'badge-count-zero' if dm.SoThuoc == 0 }}">{{ dm.SoThuoc }}</span></td>
+                    <td style="text-align: right;">
+                        <div class="action-group" style="justify-content: flex-end;">
+                            <button type="button" class="button button-light button-sm btn-edit-dm" data-ma="{{ dm.MaDanhMuc }}" data-ten="{{ dm.TenDanhMuc }}">Sửa</button>
+                            <form action="{{ url_for('delete_category', ma_dm=dm.MaDanhMuc) }}" method="POST" style="display:inline;"
+                                  onsubmit="return confirm('Xóa danh mục {{ dm.MaDanhMuc }}?');">
+                                <button type="submit" class="button button-danger button-sm">Xóa</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4"><div class="empty-state"><strong>Chưa có danh mục</strong></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- =================== 4. NHÀ CUNG CẤP =================== -->
+<div class="panel form-panel" id="nha-cung-cap">
+    <div class="panel-heading">
+        <h2 class="panel-title" id="ncc-form-title">4. Quản lý Nhà cung cấp</h2>
+        <p class="panel-description">Nhập đầy đủ mã, tên, địa chỉ, số điện thoại, email. Mã nhà cung cấp là khóa chính nên không được trùng.</p>
+    </div>
+    <form method="POST" action="{{ url_for('manage_medicines') }}#nha-cung-cap" id="ncc-form">
+        <input type="hidden" name="action" id="ncc-action" value="{{ ncc_mode }}">
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="field-label">Mã nhà cung cấp (*)</label>
+                <input type="text" class="form-input" name="ncc_ma" id="ncc_ma" placeholder="VD: NCC04" maxlength="20"
+                       value="{{ form.get('ncc_ma', '') }}" {% if ncc_mode == 'update_supplier' %}readonly{% endif %} required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Tên nhà cung cấp (*)</label>
+                <input type="text" class="form-input" name="ncc_ten" id="ncc_ten" maxlength="255" value="{{ form.get('ncc_ten', '') }}" required>
+            </div>
+            <div class="form-field">
+                <label class="field-label">Địa chỉ</label>
+                <input type="text" class="form-input" name="ncc_diachi" id="ncc_diachi" maxlength="255" value="{{ form.get('ncc_diachi', '') }}">
+            </div>
+        </div>
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="field-label">Số điện thoại</label>
+                <input type="text" class="form-input" name="ncc_sdt" id="ncc_sdt" maxlength="20" value="{{ form.get('ncc_sdt', '') }}">
+            </div>
+            <div class="form-field">
+                <label class="field-label">Email</label>
+                <input type="email" class="form-input" name="ncc_email" id="ncc_email" maxlength="100" value="{{ form.get('ncc_email', '') }}">
+            </div>
+            <div class="form-field" style="justify-content: flex-end;">
+                <div class="form-actions">
+                    <button type="submit" class="button button-primary"><span id="ncc-btn-text">{{ 'Lưu Cập Nhật' if ncc_mode == 'update_supplier' else 'Thêm Nhà Cung Cấp' }}</span></button>
+                    <button type="button" class="button button-light" onclick="resetSimpleForm('ncc')">Hủy / Làm mới</button>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="table-scroll" style="margin-top: 8px;">
+        <table class="data-table" style="min-width: 950px;">
+            <thead><tr><th>Mã NCC</th><th>Tên nhà cung cấp</th><th>Địa chỉ</th><th>SĐT</th><th>Email</th><th>Số lô</th><th style="text-align: right;">Thao tác</th></tr></thead>
+            <tbody>
+                {% for n in suppliers %}
+                <tr>
+                    <td><span class="code-chip">{{ n.MaNCC }}</span></td>
+                    <td>{{ n.TenNCC }}</td>
+                    <td>{{ n.Diachi or '-' }}</td>
+                    <td>{{ n.SDT or '-' }}</td>
+                    <td>{{ n.Email or '-' }}</td>
+                    <td><span class="badge-count {{ 'badge-count-zero' if n.SoLo == 0 }}">{{ n.SoLo }}</span></td>
+                    <td style="text-align: right;">
+                        <div class="action-group" style="justify-content: flex-end;">
+                            <button type="button" class="button button-light button-sm btn-edit-ncc"
+                                    data-ma="{{ n.MaNCC }}" data-ten="{{ n.TenNCC }}" data-diachi="{{ n.Diachi or '' }}"
+                                    data-sdt="{{ n.SDT or '' }}" data-email="{{ n.Email or '' }}">Sửa</button>
+                            <form action="{{ url_for('delete_supplier', ma_ncc=n.MaNCC) }}" method="POST" style="display:inline;"
+                                  onsubmit="return confirm('Xóa nhà cung cấp {{ n.MaNCC }}?');">
+                                <button type="submit" class="button button-danger button-sm">Xóa</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7"><div class="empty-state"><strong>Chưa có nhà cung cấp</strong></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function setVal(id, value) { document.getElementById(id).value = value; }
+
+function toggleDanhMuc(isCreatingNew) {
+    document.getElementById('mode_select_danhmuc').style.display = isCreatingNew ? 'none' : 'block';
+    document.getElementById('mode_create_danhmuc').style.display = isCreatingNew ? 'block' : 'none';
+    if (isCreatingNew) { setVal('ma_danh_muc', ''); }
+    else {
+        document.querySelector('input[name="ma_danh_muc_new"]').value = '';
+        document.querySelector('input[name="ten_danh_muc_new"]').value = '';
+    }
+}
+
+function toggleNCC(isCreatingNew) {
+    document.getElementById('mode_select_ncc').style.display = isCreatingNew ? 'none' : 'block';
+    document.getElementById('mode_create_ncc').style.display = isCreatingNew ? 'block' : 'none';
+    if (isCreatingNew) { setVal('ma_ncc', ''); }
+    else {
+        ['ma_ncc_new', 'ten_ncc_new', 'diachi_ncc_new', 'sdt_ncc_new', 'email_ncc_new'].forEach(function (n) {
+            document.querySelector('input[name="' + n + '"]').value = '';
+        });
+    }
+}
+
+/* ----- Form thuốc: chuyển giữa chế độ Thêm và Sửa ----- */
+function setMedicineMode(mode, ma, ton) {
+    var editing = (mode === 'update_medicine');
+    setVal('medicine-action', mode);
+    document.getElementById('medicine-form-title').innerText =
+        editing ? 'Cập nhật thông tin thuốc: ' + ma : '1. Thêm mới hoặc cập nhật thông tin Thuốc';
+    document.getElementById('med-btn-text').innerText = editing ? 'Lưu Cập Nhật' : 'Lưu Thuốc Mới';
+    document.getElementById('ma_thuoc').readOnly = editing;
+    setVal('so_luong_ton', ton || 0);
+}
+
+function resetMedicineForm() {
+    document.getElementById('medicine-form').reset();
+    ['ma_thuoc', 'ten_thuoc', 'don_gia_ban', 'thanh_phan', 'chi_dinh'].forEach(function (id) { setVal(id, ''); });
+    setVal('ma_danh_muc', '');
+    toggleDanhMuc(false);
+    setMedicineMode('add_medicine', '', 0);
+}
+
+/* ----- Form danh mục / nhà cung cấp: dùng chung một hàm ----- */
+function resetSimpleForm(prefix) {
+    var ids = prefix === 'dm' ? ['dm_ma', 'dm_ten'] : ['ncc_ma', 'ncc_ten', 'ncc_diachi', 'ncc_sdt', 'ncc_email'];
+    ids.forEach(function (id) { setVal(id, ''); });
+    document.getElementById(ids[0]).readOnly = false;
+    setVal(prefix + '-action', prefix === 'dm' ? 'add_category' : 'add_supplier');
+    document.getElementById(prefix + '-btn-text').innerText = prefix === 'dm' ? 'Thêm Danh Mục' : 'Thêm Nhà Cung Cấp';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.btn-edit').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var d = this.dataset;
+            setMedicineMode('update_medicine', d.ma, d.ton);
+            setVal('ma_thuoc', d.ma);
+            setVal('ten_thuoc', d.ten);
+            toggleDanhMuc(false);
+            setVal('ma_danh_muc', d.madm);
+            setVal('don_gia_ban', d.gia);
+            setVal('thanh_phan', d.thanhphan);
+            setVal('chi_dinh', d.chidinh);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+
+    document.querySelectorAll('.btn-edit-dm').forEach(function (button) {
+        button.addEventListener('click', function () {
+            setVal('dm-action', 'update_category');
+            document.getElementById('dm-btn-text').innerText = 'Lưu Cập Nhật';
+            setVal('dm_ma', this.dataset.ma);
+            document.getElementById('dm_ma').readOnly = true;
+            setVal('dm_ten', this.dataset.ten);
+            document.getElementById('danh-muc').scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+
+    document.querySelectorAll('.btn-edit-ncc').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var d = this.dataset;
+            setVal('ncc-action', 'update_supplier');
+            document.getElementById('ncc-btn-text').innerText = 'Lưu Cập Nhật';
+            setVal('ncc_ma', d.ma);
+            document.getElementById('ncc_ma').readOnly = true;
+            setVal('ncc_ten', d.ten);
+            setVal('ncc_diachi', d.diachi);
+            setVal('ncc_sdt', d.sdt);
+            setVal('ncc_email', d.email);
+            document.getElementById('nha-cung-cap').scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+
+    /* Nếu form vừa bị lỗi ở chế độ "Sửa thuốc", hiển thị lại tồn kho của thuốc đó */
+    var current = document.getElementById('ma_thuoc').value;
+    if (document.getElementById('medicine-action').value === 'update_medicine' && current) {
+        var row = document.querySelector('.btn-edit[data-ma="' + current + '"]');
+        setMedicineMode('update_medicine', current, row ? row.dataset.ton : 0);
+    }
+});
+</script>
+{% endblock %}
